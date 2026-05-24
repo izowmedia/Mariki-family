@@ -1,0 +1,90 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Contributions · Mariki Portal</title>
+<link rel="stylesheet" href="css/styles.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+</head><body>
+<div class="app" id="app"><div class="center" style="grid-column:1/-1"><div class="spinner"></div></div></div>
+<script type="module">
+import { db, collection, addDoc, getDocs, deleteDoc, doc, serverTimestamp } from "./js/firebase.js";
+import { requireAuth, renderSidebar, bindLogout, fmtTZS, toast } from "./js/common.js";
+
+const {user, profile} = await requireAuth();
+if(!profile || profile.status!=="approved"){ location.href="dashboard.html"; }
+const canManage = ["admin","superadmin","treasurer"].includes(profile.role);
+const app=document.getElementById("app");
+app.innerHTML = renderSidebar("contributions.html",profile) + `
+  <main class="main">
+    <div class="h1">Contributions</div>
+    <p class="muted">All amounts in Tanzanian Shillings (TZS).</p>
+
+    <div class="grid grid-3" style="margin-top:16px">
+      <div class="glass stat"><div class="label">Total</div><div class="value accent" id="tot">—</div></div>
+      <div class="glass stat"><div class="label">Entries</div><div class="value" id="cnt">—</div></div>
+      <div class="glass stat"><div class="label">This month</div><div class="value accent" id="mo">—</div></div>
+    </div>
+
+    ${canManage?`<div class="glass card" style="margin-top:16px">
+      <div class="h2">Add contribution</div>
+      <form id="f" class="grid grid-4" style="margin-top:10px">
+        <input class="input" id="cname" placeholder="Member name" required/>
+        <input class="input" id="cmid" placeholder="Member ID (optional)"/>
+        <input class="input" id="camount" type="number" min="0" placeholder="Amount (TZS)" required/>
+        <input class="input" id="cdate" type="date" required/>
+        <input class="input" id="cpurpose" placeholder="Purpose" style="grid-column:1/3"/>
+        <div style="grid-column:3/5;display:flex;justify-content:flex-end"><button class="btn btn-gold">Save</button></div>
+      </form>
+    </div>`:""}
+
+    <div class="glass card" style="margin-top:16px">
+      <div class="h2">All contributions</div>
+      <div id="tbl" style="margin-top:10px"></div>
+    </div>
+  </main>`;
+bindLogout();
+document.getElementById("cdate") && (document.getElementById("cdate").value = new Date().toISOString().slice(0,10));
+
+async function load(){
+  const snap = await getDocs(collection(db,"contributions"));
+  const rows=[]; snap.forEach(d=>rows.push({id:d.id,...d.data()}));
+  rows.sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  let tot=0, mo=0; const ym=new Date().toISOString().slice(0,7);
+  rows.forEach(r=>{ tot+=Number(r.amount)||0; if((r.date||"").startsWith(ym)) mo+=Number(r.amount)||0; });
+  tot_.textContent=fmtTZS(tot); // placeholder, will be overwritten
+}
+async function refresh(){
+  const snap = await getDocs(collection(db,"contributions"));
+  const rows=[]; snap.forEach(d=>rows.push({id:d.id,...d.data()}));
+  rows.sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  let tot=0, mo=0; const ym=new Date().toISOString().slice(0,7);
+  rows.forEach(r=>{ tot+=Number(r.amount)||0; if((r.date||"").startsWith(ym)) mo+=Number(r.amount)||0; });
+  document.getElementById("tot").textContent=fmtTZS(tot);
+  document.getElementById("cnt").textContent=rows.length;
+  document.getElementById("mo").textContent=fmtTZS(mo);
+  const head = `<table><thead><tr><th>Date</th><th>Name</th><th>Purpose</th><th>Amount</th>${canManage?'<th></th>':''}</tr></thead><tbody>`;
+  document.getElementById("tbl").innerHTML = rows.length ? head + rows.map(r=>`
+    <tr><td>${r.date||""}</td><td>${r.name||""}</td><td>${r.purpose||""}</td><td><b class="gold-text">${fmtTZS(r.amount)}</b></td>
+    ${canManage?`<td><button class="btn btn-danger" data-id="${r.id}">Delete</button></td>`:''}</tr>`).join("") + `</tbody></table>` : `<p class="muted">No contributions yet.</p>`;
+  if(canManage){
+    document.querySelectorAll("[data-id]").forEach(b=>b.addEventListener("click", async()=>{
+      if(!confirm("Delete?")) return;
+      await deleteDoc(doc(db,"contributions",b.dataset.id));
+      toast("Deleted"); refresh();
+    }));
+  }
+}
+refresh();
+
+document.getElementById("f")?.addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  await addDoc(collection(db,"contributions"),{
+    name:cname.value.trim(), memberId:cmid.value.trim(),
+    amount:Number(camount.value)||0, date:cdate.value, purpose:cpurpose.value.trim(),
+    createdAt:serverTimestamp(), createdBy:user.uid
+  });
+  e.target.reset();
+  document.getElementById("cdate").value=new Date().toISOString().slice(0,10);
+  toast("Contribution added"); refresh();
+});
+</script>
+</body></html>

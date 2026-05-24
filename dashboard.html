@@ -1,0 +1,79 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Dashboard · Mariki Portal</title>
+<link rel="stylesheet" href="css/styles.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+</head><body>
+<div class="app" id="app"><div class="center" style="grid-column:1/-1"><div class="spinner"></div></div></div>
+
+<script type="module">
+import { db, collection, getDocs, query, where, orderBy } from "./js/firebase.js";
+import { requireAuth, renderSidebar, bindLogout, fmtTZS, toast } from "./js/common.js";
+
+const {user, profile} = await requireAuth();
+const app = document.getElementById("app");
+
+if(!profile){
+  app.innerHTML = `<div class="container"><div class="glass card"><h1 class="h1">Profile missing</h1><p class="muted">Please complete your registration.</p><a class="btn btn-gold" href="register.html">Complete registration</a></div></div>`;
+} else if(profile.status!=="approved"){
+  app.innerHTML = `<div class="container"><div class="glass card" style="max-width:560px;margin:60px auto;text-align:center">
+    <h1 class="h1">Hello ${profile.firstName||"there"} 👋</h1>
+    <p class="muted" style="margin:10px 0">Your account is <span class="badge ${profile.status}">${profile.status}</span> and awaiting admin approval. You'll get access once approved.</p>
+    <button class="btn" id="logoutBtn">Logout</button>
+  </div></div>`;
+  bindLogout();
+} else {
+  app.innerHTML = renderSidebar("dashboard.html", profile) + `
+    <main class="main">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+        <div><div class="h1">Dashboard</div><div class="muted">Welcome back, ${profile.firstName}.</div></div>
+        <span class="badge role">${profile.role}</span>
+      </div>
+      <div class="grid grid-4" id="stats">
+        <div class="glass stat"><div class="label">Total members</div><div class="value accent" id="mCount">—</div></div>
+        <div class="glass stat"><div class="label">Pending approvals</div><div class="value" id="pCount">—</div></div>
+        <div class="glass stat"><div class="label">Total contributions</div><div class="value accent" id="cTotal">—</div></div>
+        <div class="glass stat"><div class="label">Upcoming events</div><div class="value" id="eCount">—</div></div>
+      </div>
+
+      <div class="grid grid-2" style="margin-top:18px">
+        <div class="glass card">
+          <div class="h2">Recent contributions</div>
+          <div id="recentContribs" style="margin-top:10px"></div>
+        </div>
+        <div class="glass card">
+          <div class="h2">Upcoming events</div>
+          <div id="recentEvents" style="margin-top:10px"></div>
+        </div>
+      </div>
+    </main>`;
+  bindLogout();
+
+  try{
+    const users = await getDocs(collection(db,"users"));
+    let pending=0; users.forEach(d=>{ if(d.data().status==="pending") pending++; });
+    mCount.textContent = users.size;
+    pCount.textContent = pending;
+  }catch(e){ toast("Could not load members","err"); }
+
+  try{
+    const contribs = await getDocs(collection(db,"contributions"));
+    let total=0; const rows=[];
+    contribs.forEach(d=>{ const x=d.data(); total+=Number(x.amount)||0; rows.push(x); });
+    cTotal.textContent = fmtTZS(total);
+    rows.sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    document.getElementById("recentContribs").innerHTML = rows.slice(0,5).map(r=>
+      `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>${r.name||"—"} <span class="muted">· ${r.purpose||""}</span></span><b class="gold-text">${fmtTZS(r.amount)}</b></div>`).join("") || `<p class="muted">No contributions yet.</p>`;
+  }catch(e){}
+
+  try{
+    const evs = await getDocs(collection(db,"events"));
+    const list=[]; evs.forEach(d=>list.push(d.data()));
+    const upcoming = list.filter(e=>!e.date || e.date>=new Date().toISOString().slice(0,10));
+    eCount.textContent = upcoming.length;
+    document.getElementById("recentEvents").innerHTML = upcoming.slice(0,5).map(e=>
+      `<div style="padding:8px 0;border-bottom:1px solid var(--border)"><b>${e.title||"Untitled"}</b><div class="muted">${e.date||""} · ${e.location||""}</div></div>`).join("") || `<p class="muted">No upcoming events.</p>`;
+  }catch(e){}
+}
+</script>
+</body></html>

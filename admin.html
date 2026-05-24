@@ -1,0 +1,119 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Admin · Mariki Portal</title>
+<link rel="stylesheet" href="css/styles.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+</head><body>
+<div class="app" id="app"><div class="center" style="grid-column:1/-1"><div class="spinner"></div></div></div>
+<script type="module">
+import { db, collection, getDocs, doc, updateDoc, deleteDoc, addDoc, serverTimestamp } from "./js/firebase.js";
+import { requireRole, renderSidebar, bindLogout, toast, fmtTZS } from "./js/common.js";
+
+const r = await requireRole(["admin","superadmin"]);
+if(!r) throw new Error("nope");
+const {profile} = r;
+const app = document.getElementById("app");
+
+app.innerHTML = renderSidebar("admin.html", profile) + `
+  <main class="main">
+    <div class="h1">Admin Panel</div>
+    <p class="muted" style="margin-bottom:18px">Approve users, manage roles, post announcements and events.</p>
+
+    <div class="glass card" style="margin-bottom:18px">
+      <div class="h2">Pending approvals</div>
+      <div id="pendingTable" style="margin-top:10px"></div>
+    </div>
+
+    <div class="glass card" style="margin-bottom:18px">
+      <div class="h2">All members</div>
+      <div id="allTable" style="margin-top:10px"></div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="glass card">
+        <div class="h2">Post announcement</div>
+        <form id="annForm" class="grid" style="margin-top:10px">
+          <input class="input" id="annTitle" placeholder="Title" required/>
+          <textarea class="input" id="annBody" placeholder="Message" rows="4" required></textarea>
+          <button class="btn btn-gold">Publish</button>
+        </form>
+        <div id="annList" style="margin-top:12px"></div>
+      </div>
+      <div class="glass card">
+        <div class="h2">Contributions summary</div>
+        <div id="cSummary" style="margin-top:10px"></div>
+      </div>
+    </div>
+  </main>`;
+bindLogout();
+
+async function loadUsers(){
+  const snap = await getDocs(collection(db,"users"));
+  const rows=[]; snap.forEach(d=>rows.push({id:d.id, ...d.data()}));
+  const pending = rows.filter(u=>u.status==="pending");
+  const head = `<table><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Role</th><th>Actions</th></tr></thead><tbody>`;
+  document.getElementById("pendingTable").innerHTML = pending.length
+    ? head + pending.map(u=>row(u,true)).join("") + `</tbody></table>`
+    : `<p class="muted">No pending users.</p>`;
+  document.getElementById("allTable").innerHTML = head + rows.map(u=>row(u,false)).join("") + `</tbody></table>`;
+  bindRowActions();
+}
+function row(u,pendingMode){
+  const name = [u.firstName,u.lastName].filter(Boolean).join(" ")||u.email||"—";
+  return `<tr data-id="${u.id}">
+    <td>${name}</td><td>${u.email||""}</td><td>${u.phone||""}</td>
+    <td><span class="badge ${u.status||'pending'}">${u.status||'pending'}</span></td>
+    <td>
+      <select class="select role-sel">
+        ${["member","treasurer","admin","superadmin"].map(r=>`<option ${u.role===r?"selected":""}>${r}</option>`).join("")}
+      </select>
+    </td>
+    <td style="display:flex;gap:6px;flex-wrap:wrap">
+      ${pendingMode?`<button class="btn btn-gold approve">Approve</button><button class="btn btn-danger reject">Reject</button>`:
+       `<button class="btn save">Save role</button><button class="btn btn-danger del">Delete</button>`}
+    </td></tr>`;
+}
+function bindRowActions(){
+  document.querySelectorAll("tr[data-id]").forEach(tr=>{
+    const id = tr.dataset.id;
+    tr.querySelector(".approve")?.addEventListener("click", async()=>{ await updateDoc(doc(db,"users",id),{status:"approved"}); toast("Approved"); loadUsers(); });
+    tr.querySelector(".reject")?.addEventListener("click", async()=>{ await updateDoc(doc(db,"users",id),{status:"rejected"}); toast("Rejected"); loadUsers(); });
+    tr.querySelector(".save")?.addEventListener("click", async()=>{
+      const role = tr.querySelector(".role-sel").value;
+      await updateDoc(doc(db,"users",id),{role}); toast("Role updated");
+    });
+    tr.querySelector(".del")?.addEventListener("click", async()=>{
+      if(!confirm("Delete this user record? (auth account remains)")) return;
+      await deleteDoc(doc(db,"users",id)); toast("Deleted"); loadUsers();
+    });
+  });
+}
+loadUsers();
+
+async function loadAnnouncements(){
+  const snap = await getDocs(collection(db,"announcements"));
+  const rows=[]; snap.forEach(d=>rows.push({id:d.id,...d.data()}));
+  rows.sort((a,b)=>(b.createdAtMs||0)-(a.createdAtMs||0));
+  document.getElementById("annList").innerHTML = rows.slice(0,5).map(a=>
+    `<div style="padding:8px 0;border-bottom:1px solid var(--border)"><b>${a.title}</b><div class="muted" style="font-size:13px">${a.body||""}</div></div>`).join("") || `<p class="muted">No announcements.</p>`;
+}
+document.getElementById("annForm").addEventListener("submit", async(e)=>{
+  e.preventDefault();
+  await addDoc(collection(db,"announcements"),{title:annTitle.value,body:annBody.value,createdAtMs:Date.now(),createdAt:serverTimestamp(),by:profile.firstName||"admin"});
+  annTitle.value=""; annBody.value=""; toast("Published"); loadAnnouncements();
+});
+loadAnnouncements();
+
+(async()=>{
+  const snap = await getDocs(collection(db,"contributions"));
+  let total=0,count=0,byPurpose={};
+  snap.forEach(d=>{ const x=d.data(); total+=Number(x.amount)||0; count++; byPurpose[x.purpose||"General"]=(byPurpose[x.purpose||"General"]||0)+(Number(x.amount)||0); });
+  document.getElementById("cSummary").innerHTML = `
+    <div class="grid grid-2">
+      <div class="stat glass"><div class="label">Total</div><div class="value accent">${fmtTZS(total)}</div></div>
+      <div class="stat glass"><div class="label">Entries</div><div class="value">${count}</div></div>
+    </div>
+    <div style="margin-top:12px">${Object.entries(byPurpose).map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>${k}</span><b class="gold-text">${fmtTZS(v)}</b></div>`).join("")||""}</div>`;
+})();
+</script>
+</body></html>

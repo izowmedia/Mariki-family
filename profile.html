@@ -1,0 +1,69 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>My Profile · Mariki Portal</title>
+<link rel="stylesheet" href="css/styles.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+</head><body>
+<div class="app" id="app"><div class="center" style="grid-column:1/-1"><div class="spinner"></div></div></div>
+<script type="module">
+import { db, storage, doc, updateDoc, sRef, uploadBytes, getDownloadURL } from "./js/firebase.js";
+import { requireAuth, renderSidebar, bindLogout, toast } from "./js/common.js";
+
+const {user, profile} = await requireAuth();
+if(!profile){ location.href="register.html"; }
+const app=document.getElementById("app");
+const p = profile;
+const name=[p.firstName,p.middleName,p.lastName].filter(Boolean).join(" ");
+app.innerHTML = renderSidebar("profile.html",p) + `
+  <main class="main">
+    <div class="h1">My profile</div>
+    <div class="glass card" style="margin-top:16px;display:flex;gap:24px;align-items:center;flex-wrap:wrap">
+      <img class="avatar-lg" id="pic" src="${p.photoURL||'https://api.dicebear.com/9.x/initials/svg?seed='+encodeURIComponent(name||'M')}"/>
+      <div>
+        <div class="h2">${name||"Member"}</div>
+        <div class="muted">${p.email}</div>
+        <div style="margin-top:8px"><span class="badge ${p.status}">${p.status}</span> <span class="badge role">${p.role}</span></div>
+      </div>
+      <div style="margin-left:auto">
+        <label class="btn">Change photo<input type="file" id="newPic" accept="image/*" hidden/></label>
+      </div>
+    </div>
+
+    <div class="glass card" style="margin-top:16px">
+      <div class="h2">Personal details</div>
+      <form id="f" class="grid grid-2" style="margin-top:12px">
+        ${[
+          ["firstName","First name"],["middleName","Middle name"],["lastName","Last name"],
+          ["gender","Gender"],["dob","Date of birth","date"],["nationality","Nationality"],
+          ["nida","NIDA"],["phone","Phone +255"],["phone2","Secondary phone"],
+          ["whatsapp","WhatsApp"],["region","Region"],["district","District"],
+          ["address","Address"],["marital","Marital status"],["spouse","Spouse"],
+          ["children","Children","number"],["clan","Clan"],["occupation","Occupation"],
+          ["education","Education"]
+        ].map(([k,l,t])=>`<div><label>${l}</label><input class="input" name="${k}" type="${t||'text'}" value="${(p[k]??'').toString().replace(/"/g,'&quot;')}"/></div>`).join("")}
+        <div style="grid-column:1/-1;display:flex;justify-content:flex-end"><button class="btn btn-gold">Save changes</button></div>
+      </form>
+    </div>
+  </main>`;
+bindLogout();
+
+document.getElementById("f").addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const upd={}; fd.forEach((v,k)=>upd[k]=v);
+  if(upd.phone && !/^\+255\d{9}$/.test(upd.phone)) return toast("Phone must be +255XXXXXXXXX","err");
+  upd.children = Number(upd.children)||0;
+  await updateDoc(doc(db,"users",user.uid), upd);
+  toast("Profile updated");
+});
+document.getElementById("newPic").addEventListener("change", async (e)=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=sRef(storage,`profiles/${user.uid}/${f.name}`);
+  await uploadBytes(r,f);
+  const url=await getDownloadURL(r);
+  await updateDoc(doc(db,"users",user.uid),{photoURL:url});
+  document.getElementById("pic").src=url;
+  toast("Photo updated");
+});
+</script>
+</body></html>

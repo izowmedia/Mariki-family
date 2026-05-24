@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Mariki Family Portal — MFP</title>
+<meta name="description" content="The official Mariki Family Portal: members, contributions, events and gallery."/>
+<link rel="stylesheet" href="css/styles.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<nav class="nav">
+  <div class="brand"><div class="logo">M</div><span>Mariki <span class="gold-text">Portal</span></span></div>
+  <ul>
+    <li><a href="index.html" class="active">Home</a></li>
+    <li><a href="login.html">Login</a></li>
+    <li><a href="register.html">Register</a></li>
+  </ul>
+  <a href="login.html" class="btn btn-gold">Sign in</a>
+</nav>
+
+<section class="hero">
+  <h1>Mariki Family Portal<br/><span class="gold-text">MFP</span></h1>
+  <p>One trusted home for our family — members directory, contributions, events, and shared memories. Built for the Mariki family, secured by Firebase.</p>
+  <div class="cta-row">
+    <a href="register.html" class="btn btn-gold">Create account</a>
+    <a href="login.html" class="btn btn-ghost">I already have an account</a>
+  </div>
+</section>
+
+<section class="container grid grid-3">
+  <div class="glass card">
+    <div class="h2 gold-text">Members</div>
+    <p class="muted" style="margin-top:8px">Full family directory with profiles, clans and contacts.</p>
+  </div>
+  <div class="glass card">
+    <div class="h2 gold-text">Contributions</div>
+    <p class="muted" style="margin-top:8px">Transparent tracking of every TZS contributed, with admin & treasurer controls.</p>
+  </div>
+  <div class="glass card">
+    <div class="h2 gold-text">Events & Gallery</div>
+    <p class="muted" style="margin-top:8px">Plan family gatherings and preserve photos and videos for generations.</p>
+  </div>
+</section>
+
+<footer class="container muted" style="text-align:center;padding:40px 24px">
+  © <span id="yr"></span> Mariki Family · SCEM System
+</footer>
+<script>document.getElementById("yr").textContent=new Date().getFullYear()</script>
+</body>
+</html>

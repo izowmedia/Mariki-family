@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Login · Mariki Portal</title>
+<link rel="stylesheet" href="css/styles.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+</head><body>
+<div class="auth-wrap">
+  <div class="glass auth-card">
+    <div class="brand" style="margin-bottom:18px"><div class="logo">M</div><span>Mariki <span class="gold-text">Portal</span></span></div>
+    <h1 class="h1">Welcome back</h1>
+    <p class="muted" style="margin:6px 0 20px">Sign in to continue to your dashboard.</p>
+
+    <form id="loginForm" class="grid">
+      <div><label>Email</label><input class="input" type="email" id="email" required/></div>
+      <div><label>Password</label><input class="input" type="password" id="password" required minlength="6"/></div>
+      <button class="btn btn-gold" type="submit">Sign in</button>
+    </form>
+
+    <div class="divider">or</div>
+    <button id="googleBtn" class="btn" style="width:100%">Continue with Google</button>
+
+    <div style="display:flex;justify-content:space-between;margin-top:16px;font-size:14px">
+      <a href="#" id="resetBtn">Forgot password?</a>
+      <a href="register.html">Create account</a>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { auth, googleProvider, signInWithEmailAndPassword, signInWithPopup, sendPasswordResetEmail, db, doc, getDoc, setDoc, serverTimestamp } from "./js/firebase.js";
+import { toast } from "./js/common.js";
+
+document.getElementById("loginForm").addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  try{
+    await signInWithEmailAndPassword(auth, email.value.trim(), password.value);
+    toast("Logged in");
+    location.href="dashboard.html";
+  }catch(err){ toast(err.message,"err"); }
+});
+
+document.getElementById("googleBtn").addEventListener("click", async ()=>{
+  try{
+    const res = await signInWithPopup(auth, googleProvider);
+    const ref = doc(db,"users",res.user.uid);
+    const snap = await getDoc(ref);
+    if(!snap.exists()){
+      await setDoc(ref,{
+        firstName: res.user.displayName?.split(" ")[0] || "",
+        lastName: res.user.displayName?.split(" ").slice(-1)[0] || "",
+        email: res.user.email, phone:"", nationality:"Tanzania",
+        role:"member", status:"pending", photoURL: res.user.photoURL||"",
+        createdAt: serverTimestamp()
+      });
+      toast("Account created. Awaiting admin approval.","ok");
+    } else toast("Logged in");
+    location.href="dashboard.html";
+  }catch(err){ toast(err.message,"err"); }
+});
+
+document.getElementById("resetBtn").addEventListener("click", async (e)=>{
+  e.preventDefault();
+  const em = email.value.trim();
+  if(!em) return toast("Enter your email first","err");
+  try{ await sendPasswordResetEmail(auth, em); toast("Reset email sent"); }
+  catch(err){ toast(err.message,"err"); }
+});
+</script>
+</body></html>

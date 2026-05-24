@@ -1,0 +1,47 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Members · Mariki Portal</title>
+<link rel="stylesheet" href="css/styles.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+</head><body>
+<div class="app" id="app"><div class="center" style="grid-column:1/-1"><div class="spinner"></div></div></div>
+<script type="module">
+import { db, collection, getDocs } from "./js/firebase.js";
+import { requireAuth, renderSidebar, bindLogout } from "./js/common.js";
+
+const {profile} = await requireAuth();
+if(!profile || profile.status!=="approved"){ location.href="dashboard.html"; }
+const app=document.getElementById("app");
+app.innerHTML = renderSidebar("members.html",profile) + `
+  <main class="main">
+    <div class="h1">Members directory</div>
+    <p class="muted" style="margin-bottom:16px">All approved family members.</p>
+    <input class="input" id="q" placeholder="Search by name, clan, region…" style="max-width:420px;margin-bottom:14px"/>
+    <div class="grid grid-3" id="grid"></div>
+  </main>`;
+bindLogout();
+
+const snap = await getDocs(collection(db,"users"));
+const all=[]; snap.forEach(d=>all.push(d.data()));
+const approved = all.filter(u=>u.status==="approved");
+const grid = document.getElementById("grid");
+function render(list){
+  grid.innerHTML = list.map(u=>{
+    const name=[u.firstName,u.middleName,u.lastName].filter(Boolean).join(" ");
+    return `<div class="glass card" style="display:flex;gap:14px;align-items:center">
+      <img class="avatar" src="${u.photoURL||'https://api.dicebear.com/9.x/initials/svg?seed='+encodeURIComponent(name||'M')}" alt=""/>
+      <div>
+        <div style="font-weight:700">${name||"Member"}</div>
+        <div class="muted" style="font-size:13px">${u.clan||""} ${u.region?"· "+u.region:""}</div>
+        <div class="muted" style="font-size:13px">${u.phone||""}</div>
+        <span class="badge role" style="margin-top:6px">${u.role||"member"}</span>
+      </div></div>`;
+  }).join("") || `<p class="muted">No members yet.</p>`;
+}
+render(approved);
+document.getElementById("q").addEventListener("input",(e)=>{
+  const q=e.target.value.toLowerCase();
+  render(approved.filter(u=>JSON.stringify(u).toLowerCase().includes(q)));
+});
+</script>
+</body></html>

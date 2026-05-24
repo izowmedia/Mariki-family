@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Register · Mariki Portal</title>
+<link rel="stylesheet" href="css/styles.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+</head><body>
+<div class="auth-wrap">
+  <div class="glass auth-card" style="max-width:760px">
+    <div class="brand" style="margin-bottom:18px"><div class="logo">M</div><span>Mariki <span class="gold-text">Portal</span></span></div>
+    <h1 class="h1">Create your account</h1>
+    <p class="muted" style="margin:6px 0 20px">All new members are reviewed by an admin before access is granted.</p>
+
+    <form id="regForm" class="grid grid-2">
+      <div><label>First name *</label><input class="input" id="firstName" required/></div>
+      <div><label>Middle name</label><input class="input" id="middleName"/></div>
+      <div><label>Last name *</label><input class="input" id="lastName" required/></div>
+      <div><label>Gender *</label>
+        <select class="select" id="gender" required>
+          <option value="">Select</option><option>Male</option><option>Female</option><option>Other</option>
+        </select>
+      </div>
+      <div><label>Date of birth *</label><input class="input" type="date" id="dob" required/></div>
+      <div><label>Nationality</label><input class="input" id="nationality" value="Tanzania"/></div>
+      <div><label>NIDA / ID Number</label><input class="input" id="nida"/></div>
+      <div><label>Phone (+255) *</label><input class="input" id="phone" pattern="^\+255\d{9}$" placeholder="+255712345678" required/></div>
+      <div><label>Secondary phone</label><input class="input" id="phone2" placeholder="+255..."/></div>
+      <div><label>WhatsApp number</label><input class="input" id="whatsapp" placeholder="+255..."/></div>
+      <div><label>Email *</label><input class="input" type="email" id="email" required/></div>
+      <div><label>Password *</label><input class="input" type="password" id="password" required minlength="6"/></div>
+      <div><label>Region</label><input class="input" id="region"/></div>
+      <div><label>District</label><input class="input" id="district"/></div>
+      <div style="grid-column:1/-1"><label>Address</label><input class="input" id="address"/></div>
+      <div><label>Marital status</label>
+        <select class="select" id="marital"><option>Single</option><option>Married</option><option>Divorced</option><option>Widowed</option></select>
+      </div>
+      <div><label>Spouse name</label><input class="input" id="spouse"/></div>
+      <div><label>Number of children</label><input class="input" type="number" min="0" id="children" value="0"/></div>
+      <div><label>Clan / Family branch</label><input class="input" id="clan"/></div>
+      <div><label>Occupation</label><input class="input" id="occupation"/></div>
+      <div><label>Education level</label>
+        <select class="select" id="education"><option>Primary</option><option>Secondary</option><option>Diploma</option><option>Bachelor</option><option>Master</option><option>PhD</option><option>Other</option></select>
+      </div>
+      <div style="grid-column:1/-1"><label>Profile photo</label><input class="input" type="file" id="photo" accept="image/*"/></div>
+      <div style="grid-column:1/-1;display:flex;gap:10px;justify-content:space-between;align-items:center;margin-top:6px">
+        <a href="login.html" class="muted">Already have an account? Sign in</a>
+        <button class="btn btn-gold" type="submit">Create account</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+import { auth, db, storage, createUserWithEmailAndPassword, doc, setDoc, serverTimestamp, sRef, uploadBytes, getDownloadURL } from "./js/firebase.js";
+import { toast } from "./js/common.js";
+
+document.getElementById("regForm").addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  const phone = document.getElementById("phone").value.trim();
+  if(!/^\+255\d{9}$/.test(phone)) return toast("Phone must be in +255XXXXXXXXX format","err");
+  const btn = e.submitter; btn.disabled=true; btn.textContent="Creating…";
+  try{
+    const cred = await createUserWithEmailAndPassword(auth, email.value.trim(), password.value);
+    let photoURL = "";
+    const file = document.getElementById("photo").files[0];
+    if(file){
+      const r = sRef(storage, `profiles/${cred.user.uid}/${file.name}`);
+      await uploadBytes(r, file);
+      photoURL = await getDownloadURL(r);
+    }
+    const data = {
+      firstName:firstName.value.trim(), middleName:middleName.value.trim(), lastName:lastName.value.trim(),
+      gender:gender.value, dob:dob.value, nationality:nationality.value||"Tanzania", nida:nida.value.trim(),
+      phone, phone2:phone2.value.trim(), whatsapp:whatsapp.value.trim(),
+      email:email.value.trim(), region:region.value.trim(), district:district.value.trim(),
+      address:address.value.trim(), marital:marital.value, spouse:spouse.value.trim(),
+      children:Number(children.value)||0, clan:clan.value.trim(), occupation:occupation.value.trim(),
+      education:education.value, photoURL,
+      role:"member", status:"pending", createdAt: serverTimestamp()
+    };
+    await setDoc(doc(db,"users",cred.user.uid), data);
+    toast("Account created. Awaiting admin approval.","ok");
+    setTimeout(()=>location.href="dashboard.html", 1000);
+  }catch(err){ toast(err.message,"err"); btn.disabled=false; btn.textContent="Create account"; }
+});
+</script>
+</body></html>

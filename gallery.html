@@ -1,0 +1,61 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Gallery · Mariki Portal</title>
+<link rel="stylesheet" href="css/styles.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+</head><body>
+<div class="app" id="app"><div class="center" style="grid-column:1/-1"><div class="spinner"></div></div></div>
+<script type="module">
+import { db, storage, collection, addDoc, getDocs, deleteDoc, doc, serverTimestamp, sRef, uploadBytes, getDownloadURL, deleteObject } from "./js/firebase.js";
+import { requireAuth, renderSidebar, bindLogout, toast } from "./js/common.js";
+
+const {user, profile} = await requireAuth();
+if(!profile || profile.status!=="approved"){ location.href="dashboard.html"; }
+const isAdmin = ["admin","superadmin"].includes(profile.role);
+const app=document.getElementById("app");
+app.innerHTML = renderSidebar("gallery.html",profile) + `
+  <main class="main">
+    <div class="h1">Gallery</div>
+    <p class="muted">Family photos and videos. Members can upload; admins can delete.</p>
+    <div class="glass card" style="margin-top:16px">
+      <label>Upload image or video</label>
+      <input class="input" type="file" id="up" accept="image/*,video/*" multiple/>
+      <div class="muted" id="status" style="margin-top:8px"></div>
+    </div>
+    <div class="gallery" id="g" style="margin-top:16px"></div>
+  </main>`;
+bindLogout();
+
+async function load(){
+  const snap = await getDocs(collection(db,"media"));
+  const items=[]; snap.forEach(d=>items.push({id:d.id,...d.data()}));
+  items.sort((a,b)=>(b.createdAtMs||0)-(a.createdAtMs||0));
+  document.getElementById("g").innerHTML = items.length ? items.map(m=>`
+    <div class="item">
+      ${m.type?.startsWith("video")?`<video src="${m.url}" controls></video>`:`<img src="${m.url}" loading="lazy"/>`}
+      ${isAdmin?`<button class="del" data-id="${m.id}" data-path="${m.path}">Delete</button>`:""}
+    </div>`).join("") : `<p class="muted">No media uploaded yet.</p>`;
+  document.querySelectorAll(".del").forEach(b=>b.addEventListener("click", async()=>{
+    if(!confirm("Delete this media?")) return;
+    try{ await deleteObject(sRef(storage, b.dataset.path)); }catch(e){}
+    await deleteDoc(doc(db,"media",b.dataset.id));
+    toast("Deleted"); load();
+  }));
+}
+load();
+
+document.getElementById("up").addEventListener("change", async(e)=>{
+  const files=[...e.target.files]; const status=document.getElementById("status");
+  for(const f of files){
+    status.textContent=`Uploading ${f.name}…`;
+    const path=`media/${Date.now()}_${f.name}`;
+    const r=sRef(storage,path);
+    await uploadBytes(r,f);
+    const url=await getDownloadURL(r);
+    await addDoc(collection(db,"media"),{url,path,type:f.type,name:f.name,by:user.uid,createdAt:serverTimestamp(),createdAtMs:Date.now()});
+  }
+  status.textContent=""; e.target.value="";
+  toast("Upload complete"); load();
+});
+</script>
+</body></html>
